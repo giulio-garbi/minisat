@@ -160,20 +160,37 @@ bool Solver::addClause_(vec<Lit>& ps)
     sort(ps);
     Lit p; int i, j;
     for (i = j = 0, p = lit_Undef; i < ps.size(); i++)
-        if (value(ps[i]) == l_True || ps[i] == ~p)
+        if (value(ps[i]) == l_True || ps[i] == ~p) {
+            if (log) {
+                fprintf(log, "c found already true clause: skip it\n");
+            }
             return true;
-        else if (value(ps[i]) != l_False && ps[i] != p)
+        } else if (value(ps[i]) != l_False && ps[i] != p)
             ps[j++] = p = ps[i];
     ps.shrink(i - j);
 
-    if (ps.size() == 0)
+    if (ps.size() == 0) {
+        if(log){
+            fprintf(log, "c found empty clause: unsat\n");
+        }
         return ok = false;
+    }
     else if (ps.size() == 1){
+        if(log){
+            fprintf(log, "c found unitary clause ");
+            print_lit(ps[0]);
+            fprintf(log, ": will unary-propagate it\n");
+        }
         uncheckedEnqueue(ps[0]);
         return ok = (propagate() == CRef_Undef);
     }else{
         CRef cr = ca.alloc(ps, false);
         clauses.push(cr);
+        if(log){
+            fprintf(log, "c found clause ");
+            print_clause(cr);
+            fprintf(log, "\n");
+        }
         attachClause(cr);
     }
 
@@ -491,6 +508,20 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     trail.push_(p);
 }
 
+void Solver::print_clause(CRef c) const{
+    if(log) {
+        fprintf(log, "#%d: ", c);
+        for(int i = 0; i<ca[c].size(); i++){
+            print_lit(ca[c][i]);
+        }
+    }
+}
+
+void Solver::print_lit(Lit l) const{
+    if(log) {
+        fprintf(log, "%c%d ", (sign(l)?'-':' '), var(l)+1);
+    }
+}
 
 /*_________________________________________________________________________________________________
 |
@@ -513,12 +544,28 @@ CRef Solver::propagate()
         vec<Watcher>&  ws  = watches.lookup(p);
         Watcher        *i, *j, *end;
         num_props++;
+        if(log) {
+            fprintf(log, "c level %d : propagate ", decisionLevel());
+            print_lit(p);
+            fprintf(log, "\n");
+        }
 
         for (i = j = (Watcher*)ws, end = i + ws.size();  i != end;){
+            if(log) {
+                fprintf(log, "c    analysing watched clause ");
+                print_clause(i->cref);
+                fprintf(log, "\n");
+            }
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
             if (value(blocker) == l_True){
-                *j++ = *i++; continue; }
+                *j++ = *i++;
+                if(log) {
+                    fprintf(log, "c        the clause is already satisfied (thanks to blocker ");
+                    print_lit(blocker);
+                    fprintf(log, "), skipping it\n");
+                }
+                continue; }
 
             // Make sure the false literal is data[1]:
             CRef     cr        = i->cref;
@@ -533,25 +580,45 @@ CRef Solver::propagate()
             Lit     first = c[0];
             Watcher w     = Watcher(cr, first);
             if (first != blocker && value(first) == l_True){
-                *j++ = w; continue; }
+                *j++ = w;
+                if(log) {
+                    fprintf(log, "c        the clause is already satisfied (thanks to ");
+                    print_lit(first);
+                    fprintf(log, "), skipping it\n");
+                }
+                continue;}
 
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
                 if (value(c[k]) != l_False){
                     c[1] = c[k]; c[k] = false_lit;
                     watches[~c[1]].push(w);
+                    fprintf(log, "c        the clause is rewritten as ");
+                    print_clause(cr);
+                    fprintf(log, "\n");
                     goto NextClause; }
 
             // Did not find watch -- clause is unit under assignment:
             *j++ = w;
             if (value(first) == l_False){
+                if(log) {
+                    fprintf(log, "c        can\'t unit-propagate ");
+                    print_lit(first);
+                    fprintf(log, ": there\'s a conflict!\n");
+                }
                 confl = cr;
                 qhead = trail.size();
                 // Copy the remaining watches:
                 while (i < end)
                     *j++ = *i++;
-            }else
+            }else {
+                if(log) {
+                    fprintf(log, "c        will unit-propagate ");
+                    print_lit(first);
+                    fprintf(log, "\n");
+                }
                 uncheckedEnqueue(first, cr);
+            }
 
         NextClause:;
         }
@@ -719,12 +786,24 @@ lbool Solver::search(int nof_conflicts)
             cancelUntil(backtrack_level);
 
             if (learnt_clause.size() == 1){
+                if(log) {
+                    fprintf(log, "c        learnt literal ");
+                    print_lit(learnt_clause[0]);
+                    fprintf(log, " which is being propagated\n");
+                }
                 uncheckedEnqueue(learnt_clause[0]);
             }else{
                 CRef cr = ca.alloc(learnt_clause, true);
                 learnts.push(cr);
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
+                if(log) {
+                    fprintf(log, "c        learnt clause ");
+                    print_clause(cr);
+                    fprintf(log, " and propagating ");
+                    print_lit(learnt_clause[0]);
+                    fprintf(log, "\n");
+                }
                 uncheckedEnqueue(learnt_clause[0], cr);
             }
 
