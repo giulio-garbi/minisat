@@ -72,6 +72,9 @@ int main(int argc, char** argv)
         double initial_time = cpuTime();
 
         S.verbosity = verb;
+        if(log){
+            S.log = stdout;
+        }
         
         solver = &S;
         // Use signal handlers that forcibly quit until the solver will be able to respond to
