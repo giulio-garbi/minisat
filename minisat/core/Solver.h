@@ -299,6 +299,8 @@ protected:
     void print_lit(Lit l) const;
 
     void print_clause(CRef c) const;
+
+    int lit2int(Lit l) const;
 };
 
 

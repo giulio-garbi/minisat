@@ -315,10 +315,34 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     int pathC = 0;
     Lit p     = lit_Undef;
 
+    int* cfl_to_print, sz_cfl_to_print = 0;
+
+    if(log){
+        fprintf(log, "c        building the reason for NOT(");
+        print_clause(confl);
+        fprintf(log, ")\n");
+        fprintf(log, "c            <=> ");
+        cfl_to_print = (int*)malloc(ca[confl].size()* sizeof(int));
+        sz_cfl_to_print = ca[confl].size();
+        for(int i = 0; i<ca[confl].size(); i++){
+            if(i == 0) {
+                cfl_to_print[i] = lit2int(~ca[confl][i]);
+            } else {
+                cfl_to_print[i] = lit2int(ca[confl][i]);
+            }
+            fprintf(log, "%d ", cfl_to_print[i]);
+        }
+        fprintf(log, "\n");
+        fflush(log);
+    }
+
     // Generate conflict clause:
     //
     out_learnt.push();      // (leave room for the asserting literal)
     int index   = trail.size() - 1;
+
+    int* cfl_to_print2, sz_cfl_to_print2 = 0, idx_cfl_to_print = 0;
+
 
     do{
         assert(confl != CRef_Undef); // (otherwise should be UIP)
@@ -327,8 +351,37 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
         if (c.learnt())
             claBumpActivity(c);
 
+        if(log && p != lit_Undef){
+            sz_cfl_to_print2 = 0;
+            idx_cfl_to_print = 0;
+            cfl_to_print2 = (int*)malloc((sz_cfl_to_print -1 + ca[confl].size())* sizeof(int));
+            int stop_at = lit2int(p);
+            fprintf(log, "c            <=> ");
+            while(abs(cfl_to_print[idx_cfl_to_print]) != abs(stop_at)){
+                cfl_to_print2[sz_cfl_to_print2] = cfl_to_print[idx_cfl_to_print];
+                fprintf(log, "%d ", cfl_to_print2[sz_cfl_to_print2++]);
+                idx_cfl_to_print++;
+            }
+            if(log == stdout)
+                fprintf(log, "\e[9m%d\e[m \e[1m", cfl_to_print[idx_cfl_to_print++]);
+            else
+                fprintf(log, "~%d~ [", cfl_to_print[idx_cfl_to_print++]);
+        }
+
         for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++){
             Lit q = c[j];
+
+            if(log && p != lit_Undef){
+                if(!seen[var(q)] && level(var(q)) > 0){
+                    cfl_to_print2[sz_cfl_to_print2] = lit2int(q);
+                    fprintf(log, "%d ", cfl_to_print2[sz_cfl_to_print2++]);
+                } else {
+                    if(log == stdout)
+                        fprintf(log, "\e[9m%d\e[m\e[1m ", lit2int(q));
+                    else
+                        fprintf(log, "~%d~ ", lit2int(q));
+                }
+            }
 
             if (!seen[var(q)] && level(var(q)) > 0){
                 varBumpActivity(var(q));
@@ -338,6 +391,21 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
                 else
                     out_learnt.push(q);
             }
+        }
+        if(log && p != lit_Undef) {
+            if(log == stdout)
+                fprintf(log, "\e[m");
+            else
+                fprintf(log, "] ");
+            while (idx_cfl_to_print < sz_cfl_to_print) {
+                cfl_to_print2[sz_cfl_to_print2] = cfl_to_print[idx_cfl_to_print];
+                fprintf(log, "%d ", cfl_to_print2[sz_cfl_to_print2++]);
+                idx_cfl_to_print++;
+            }
+            free(cfl_to_print);
+            cfl_to_print = cfl_to_print2;
+            sz_cfl_to_print = sz_cfl_to_print2;
+            fprintf(log, "\n");
         }
         
         // Select next clause to look at:
@@ -387,14 +455,25 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     else{
         int max_i = 1;
         // Find the first literal assigned at the next-highest level:
-        for (int i = 2; i < out_learnt.size(); i++)
+        if(log){
+            fprintf(log, "c            literal levels: [%d(%d)] %d(%d) ", lit2int(out_learnt[0]), decisionLevel(), lit2int(out_learnt[1]), level(var(out_learnt[1])));
+        }
+        for (int i = 2; i < out_learnt.size(); i++) {
+            if(log){
+                fprintf(log, "%d(%d) ", lit2int(out_learnt[i]), level(var(out_learnt[i])));
+            }
             if (level(var(out_learnt[i])) > level(var(out_learnt[max_i])))
                 max_i = i;
+        }
         // Swap-in this literal at index 1:
         Lit p             = out_learnt[max_i];
         out_learnt[max_i] = out_learnt[1];
         out_learnt[1]     = p;
         out_btlevel       = level(var(p));
+        if(log){
+            fprintf(log, "\nc            rollback until the highest level of a literal in the learnt clause (apart from the conflicting one), i.e., level %d for literal %d\n",
+                    out_btlevel, lit2int(p));
+        }
     }
 
     for (int j = 0; j < analyze_toclear.size(); j++) seen[var(analyze_toclear[j])] = 0;    // ('seen[]' is now cleared)
@@ -521,6 +600,10 @@ void Solver::print_lit(Lit l) const{
     if(log) {
         fprintf(log, "%c%d ", (sign(l)?'-':' '), var(l)+1);
     }
+}
+
+int Solver::lit2int(Lit l) const{
+    return sign(l)?-(var(l)+1):(var(l)+1);
 }
 
 /*_________________________________________________________________________________________________
