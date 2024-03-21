@@ -738,9 +738,14 @@ void Solver::reduceDB()
     // and clauses with activity smaller than 'extra_lim':
     for (i = j = 0; i < learnts.size(); i++){
         Clause& c = ca[learnts[i]];
-        if (c.size() > 2 && !locked(c) && (i < learnts.size() / 2 || c.activity() < extra_lim))
+        if (c.size() > 2 && !locked(c) && (i < learnts.size() / 2 || c.activity() < extra_lim)) {
+            if(log){
+                fprintf(log, "c removing clause ");
+                print_clause(learnts[i]);
+                fprintf(log, "because it has low activity\n");
+            }
             removeClause(learnts[i]);
-        else
+        } else
             learnts[j++] = learnts[i];
     }
     learnts.shrink(i - j);
