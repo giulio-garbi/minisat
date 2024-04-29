@@ -58,6 +58,7 @@ public:
     int  operator *  () const { return (pos >= size) ? EOF : buf[pos]; }
     void operator ++ ()       { pos++; assureLookahead(); }
     int  position    () const { return pos; }
+    bool valid       () const { return in != nullptr; }
 };
 
 

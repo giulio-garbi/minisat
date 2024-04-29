@@ -65,6 +65,7 @@ int main(int argc, char** argv)
         IntOption    mem_lim("MAIN", "mem-lim","Limit on memory usage in megabytes.\n", 0, IntRange(0, INT32_MAX));
         BoolOption   strictp("MAIN", "strict", "Validate DIMACS header during parsing.", false);
         BoolOption   log("MAIN", "log", "Print the decision path on stdout.", false);
+        StringOption  opt_extra_file("MAIN", "extra-file",  "Extra file", nullptr);
         
         parseOptions(argc, argv, true);
 
@@ -95,8 +96,10 @@ int main(int argc, char** argv)
         if (S.verbosity > 0){
             printf("============================[ Problem Statistics ]=============================\n");
             printf("|                                                                             |\n"); }
-        
-        parse_DIMACS(in, S, (bool)strictp);
+
+        gzFile extra = (!opt_extra_file) ? (gzFile) nullptr : gzopen(opt_extra_file, "rb");
+        parse_DIMACS(in, S, extra, (bool)strictp);
+        if(extra) gzclose(extra);
         gzclose(in);
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
         
@@ -146,6 +149,12 @@ int main(int argc, char** argv)
             else
                 fprintf(res, "INDET\n");
             fclose(res);
+        }
+        if(S.log){
+            for (int i = 0; i < S.nGuards-1; i++){
+                fprintf(S.log,"%c ",(S.model[i]==l_True)?'T':(S.model[i]==l_False)?'F':'X');
+            }
+            fprintf(S.log,"\n");
         }
         
 #ifdef NDEBUG
