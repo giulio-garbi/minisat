@@ -156,36 +156,12 @@ public:
 
 
     // Guard handling data structures
-    uint nGuards, blockDS_size;
+    uint nGuards;
     Var *toVar;
     CRef *toCl;
     int *fromGuard, *toGuard;
-    uint *blockDS;
-    bool* dbg_blocked;
 
     bool is_guard(Var v) const { return v < nGuards-1; }
-    bool disables(Lit guardlit, Var guardv) const { return guardlit != lit_Undef && var(guardlit) == guardv && sign(guardlit); }
-    void enable_guard(uint guard){assert(dbg_blocked[guard+1]); dbg_blocked[guard+1]=false; enable_(fromGuard[guard+1], toGuard[guard+1]);}
-    void block_guard(uint guard){assert(!dbg_blocked[guard+1]); dbg_blocked[guard+1]=true; block_(fromGuard[guard+1], toGuard[guard+1]);}
-    void block_(Var from, Var to) { /*assert(from || to);*/ change_inner(from, (to==nGuards)?(blockDS_size>>1)-1:to, 0, (blockDS_size>>1)-1, 1, true); }
-    void enable_(Var from, Var to) { change_inner(from, (to==nGuards)?(blockDS_size>>1)-1:to, 0, (blockDS_size>>1)-1, 1, false); }
-    void change_inner(uint from, uint to, uint inner_from, uint inner_to, uint inner_idx, bool block) {
-        if(inner_from == from && inner_to == to) {
-            if(block) blockDS[inner_idx]++; else {assert(blockDS[inner_idx]);blockDS[inner_idx]--;}
-        } else {
-            uint mid = (inner_to+inner_from)/2;
-            if(to <= mid)
-                change_inner(from, std::min(mid, to), inner_from, mid, inner_idx << 1, block);
-            else {
-                if (from <= mid)
-                    change_inner(from, std::min(mid, to), inner_from, mid, inner_idx << 1, block);
-                change_inner(std::max(mid+1, from), to, mid+1, inner_to, (inner_idx << 1) + 1, block);
-            }
-        }
-    }
-    void assertEverythingEnabled(){
-        for(int i=0; i<blockDS_size; i++) assert(!blockDS[i]);
-    }
 
     Lit find_deepest_guard_lit_var(Var v) const {
         auto guard_id = std::lower_bound(toVar, toVar+nGuards, v+1)-toVar;
@@ -205,17 +181,6 @@ public:
         } else {
             return mkLit((int)guard_id-1, false);
         }
-    }
-
-    bool is_guard_disabled(Lit guardlit) const {
-        if(guardlit == lit_Undef) //true guard
-            return false;
-        uint idx = var(guardlit)+blockDS_size/2;
-        while(idx) {
-            if (blockDS[idx]) return true;
-            idx >>=1;
-        }
-        return false;
     }
 
 protected:
@@ -366,8 +331,6 @@ protected:
     void print_clause(CRef c) const;
 
     int lit2int(Lit l) const;
-
-    int propagated_until;
 };
 
 

@@ -53,21 +53,11 @@ static void parse_DIMACS_main(B& in, Solver& S, B& extra_in, bool strictp = fals
     if(extra_in.valid()){
         skipWhitespace(extra_in);
         S.nGuards = parseInt(extra_in);
-        S.blockDS_size = 0;
         if(S.nGuards) {
-            S.blockDS_size = 1;
-            while (S.blockDS_size < S.nGuards) {
-                S.blockDS_size <<= 1;
-            }
-            S.blockDS_size <<= 1;
-            S.blockDS = (uint *) malloc(S.blockDS_size * sizeof(uint));
-            memset(S.blockDS, 0, S.blockDS_size * sizeof(uint));
             S.toVar = (Var *) malloc(S.nGuards * sizeof(Var));
             S.toCl = (CRef *) malloc(S.nGuards * sizeof(CRef));
             S.fromGuard = (int *) malloc(S.nGuards * sizeof(int));
             S.toGuard = (int *) malloc(S.nGuards * sizeof(int));
-            S.dbg_blocked = (bool *) malloc(S.nGuards * sizeof(bool));
-            memset(S.dbg_blocked, 0, S.nGuards * sizeof(bool));
 
             vec<int> guard_open;
             vec<uint> nchild;

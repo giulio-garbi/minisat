@@ -103,10 +103,9 @@ Solver::Solver() :
   , asynch_interrupt   (false)
 
   // Guard data structures
-  , nGuards(0), blockDS_size(0)
+  , nGuards(0)
   , toVar(nullptr)
   , toCl(nullptr)
-  , blockDS(nullptr)
 {}
 
 
@@ -255,14 +254,6 @@ void Solver::cancelUntil(int level) {
     if (decisionLevel() > level){
         for (int c = trail.size()-1; c >= trail_lim[level]; c--){
             Var      x  = var(trail[c]);
-            if((propagated_until < 0 || c < propagated_until) && is_guard(x) && disables(trail[c], x)) { //TODO fix if true disables the guard
-                if(log) {
-                    fprintf(log, "c literal ");
-                    print_lit(trail[c]);
-                    fprintf(log, ": re-enabling guard %d (hence block [%d, %d])\n", x, fromGuard[x+1], toGuard[x+1]);
-                }
-                enable_guard(x);
-            }
             assigns [x] = l_Undef;
             if (phase_saving > 1 || (phase_saving == 1 && c > trail_lim.last()))
                 polarity[x] = sign(trail[c]);
@@ -271,7 +262,6 @@ void Solver::cancelUntil(int level) {
         trail.shrink(trail.size() - trail_lim[level]);
         trail_lim.shrink(trail_lim.size() - level);
     }
-    //if(level == 0) assertEverythingEnabled();
 }
 
 
@@ -637,44 +627,10 @@ CRef Solver::propagate()
 {
     CRef    confl     = CRef_Undef;
     int     num_props = 0;
-    propagated_until = -1;
 
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
         Var var_p = var(p);
-        Lit guard_of_p = find_deepest_guard_lit_var(var_p);
-        bool check_trueguarded_only_and_prop_guards = false;
-        bool propagate_only_enabled = false;
-        if(is_guard(var_p) && is_guard_disabled(p)){
-            if(log) {
-                fprintf(log, "c literal ");
-                print_lit(p);
-                fprintf(log, " (guard %d) is disabled, check_trueguarded_only_and_prop_guards\n", var_p);
-            }
-            check_trueguarded_only_and_prop_guards = true;
-            /*decisions--;
-            continue;*/
-        }
-        else if(is_guard_disabled(guard_of_p)){
-            if(log) {
-                fprintf(log, "c literal ");
-                print_lit(p);
-                fprintf(log, " (guard %d) is disabled\n", var(guard_of_p));
-            }
-            propagate_only_enabled = true;
-            //decisions--;
-            continue;
-        }
-
-        if(is_guard(var_p) && disables(p, var_p)){
-            if(log) {
-                fprintf(log, "c literal ");
-                print_lit(p);
-                fprintf(log, ": blocking guards [%d, %d] (CRefs (%d, %d])\n", fromGuard[var_p+1], toGuard[var_p+1], toCl[fromGuard[var_p+1]], toCl[toGuard[var_p+1]+1]);
-            }
-            block_guard(var_p);
-            //continue;
-        }
         vec<Watcher>&  ws  = watches.lookup(p);
         Watcher        *i, *j, *end;
         num_props++;
@@ -705,13 +661,6 @@ CRef Solver::propagate()
             CRef     cr        = i->cref;
             Clause&  c         = ca[cr];
             Lit      false_lit = ~p;
-            Lit guard_cl = find_deepest_guard_lit_cl(cr);
-            /*if(is_guard_disabled(guard_cl)){
-                *j++ = *i++;
-                if(log)
-                    fprintf(log, "c CRef %d (guard %d) is disabled\n", cr, var(guard_cl));
-                continue;
-            }*/
             if (c[0] == false_lit)
                 c[0] = c[1], c[1] = false_lit;
             assert(c[1] == false_lit);
@@ -744,32 +693,26 @@ CRef Solver::propagate()
 
             // Did not find watch -- clause is unit under assignment:
             *j++ = w;
-            if (value(first) == l_False || (value(first) == l_Undef && is_guard_disabled(find_deepest_guard_lit_var(var(first))))){
+            if (value(first) == l_False){
                 if(log) {
                     fprintf(log, "c        can\'t unit-propagate ");
                     print_lit(first);
-                    if(is_guard_disabled(find_deepest_guard_lit_var(var(first))) && value(first) == l_Undef)
-                        fprintf(log, " because of being disabled");
                     fprintf(log, ": there\'s a conflict!\n");
                 }
                 confl = cr;
                 if(log)
                     fprintf(log, "c qhead: %d -> %d\n", qhead, trail.size());
-                propagated_until = qhead;
                 qhead = trail.size();
                 // Copy the remaining watches:
                 while (i < end)
                     *j++ = *i++;
             }else {
-                /*if((!check_trueguarded_only_and_prop_guards || (cr <= toCl[0] && is_guard(var(first)))) && !is_guard_disabled(find_deepest_guard_lit_var(var(first))))*/
-                /*if(!propagate_only_enabled || !is_guard_disabled(find_deepest_guard_lit_var(var(first))))*/{
-                    if (log) {
-                        fprintf(log, "c        will unit-propagate ");
-                        print_lit(first);
-                        fprintf(log, "\n");
-                    }
-                    uncheckedEnqueue(first, cr);
+                if (log) {
+                    fprintf(log, "c        will unit-propagate ");
+                    print_lit(first);
+                    fprintf(log, "\n");
                 }
+                uncheckedEnqueue(first, cr);
             }
 
         NextClause:;
@@ -1014,32 +957,11 @@ lbool Solver::search(int nof_conflicts)
             if (next == lit_Undef){
                 // New variable decision:
                 decisions++;
-                here:
                 next = pickBranchLit();
 
                 if (next == lit_Undef)
                     // Model found:
                     return l_True;
-
-
-                if(is_guard(var(next)) && is_guard_disabled(next)){
-                    if(log) {
-                        fprintf(log, "c literal ");
-                        print_lit(next);
-                        fprintf(log, " is disabled\n");
-                    }
-                    goto here;
-                }
-
-                Lit guard_of_next = find_deepest_guard_lit_var(var(next));
-                if(is_guard_disabled(guard_of_next)){
-                    if(log) {
-                        fprintf(log, "c literal ");
-                        print_lit(guard_of_next);
-                        fprintf(log, " (guard %d) is disabled\n", var(guard_of_next));
-                    }
-                    goto here;
-                }
             }
 
             // Increase decision level and enqueue 'next'
