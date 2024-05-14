@@ -676,9 +676,11 @@ CRef Solver::propagate()
                 if (value(c[k]) != l_False){
                     c[1] = c[k]; c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    fprintf(log, "c        the clause is rewritten as ");
-                    print_clause(cr);
-                    fprintf(log, "\n");
+                    if(log) {
+                        fprintf(log, "c        the clause is rewritten as ");
+                        print_clause(cr);
+                        fprintf(log, "\n");
+                    }
                     goto NextClause; }
 
             // Did not find watch -- clause is unit under assignment:
