@@ -65,6 +65,7 @@ int main(int argc, char** argv)
         IntOption    mem_lim("MAIN", "mem-lim","Limit on memory usage in megabytes.\n", 0, IntRange(0, INT32_MAX));
         BoolOption   strictp("MAIN", "strict", "Validate DIMACS header during parsing.", false);
         BoolOption   log("MAIN", "log", "Print the decision path on stdout.", false);
+        StringOption   extra("MAIN", "extra", "Use extra file.");
         
         parseOptions(argc, argv, true);
 
@@ -75,7 +76,6 @@ int main(int argc, char** argv)
         if(log){
             S.log = stdout;
         }
-        
         solver = &S;
         // Use signal handlers that forcibly quit until the solver will be able to respond to
         // interrupts:
@@ -95,9 +95,17 @@ int main(int argc, char** argv)
         if (S.verbosity > 0){
             printf("============================[ Problem Statistics ]=============================\n");
             printf("|                                                                             |\n"); }
-        
-        parse_DIMACS(in, S, (bool)strictp);
+
+        FILE* extra_file = nullptr;
+        if(extra){
+            extra_file = fopen(extra, "r");
+        }
+        parse_DIMACS(in, extra_file, S, (bool)strictp);
         gzclose(in);
+        if(extra){
+            fclose(extra_file);
+            extra_file = nullptr;
+        }
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
         
         if (S.verbosity > 0){
