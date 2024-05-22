@@ -153,6 +153,10 @@ public:
     uint64_t solves, starts, decisions, rnd_decisions, propagations, conflicts;
     uint64_t dec_vars, num_clauses, num_learnts, clauses_literals, learnts_literals, max_literals, tot_literals;
 
+    vec<int> parent_guard;
+    vec<Var> last_var_guard;
+    vec<CRef> last_cref_guard;
+
 protected:
 
     // Helper structures:
@@ -189,7 +193,9 @@ protected:
 
     // Solver state:
     //
+public:
     vec<CRef>           clauses;          // List of problem clauses.
+protected:
     vec<CRef>           learnts;          // List of learnt clauses.
     vec<Lit>            trail;            // Assignment stack; stores all assigments made in the order they were made.
     vec<int>            trail_lim;        // Separator indices for different decision levels in 'trail'.

@@ -123,6 +123,9 @@ int main(int argc, char** argv)
 
         if(log){
             S.log = stdout;
+            fprintf(S.log, "c guard_idx | parent_guard | last_var | last_cref\n");
+            for(int i=0; i<S.parent_guard.size(); i++)
+                fprintf(S.log, "c %9d | %12d | %8d | %9d\n", i, S.parent_guard[i], S.last_var_guard[i]+1, S.last_cref_guard[i]);
         }
        
         if (!S.simplify()){
