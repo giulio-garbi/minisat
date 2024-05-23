@@ -274,12 +274,17 @@ Lit Solver::pickBranchLit()
             rnd_decisions++; }
 
     // Activity based decision:
-    while (next == var_Undef || value(next) != l_Undef || !decision[next])
-        if (order_heap.empty()){
+    while (next == var_Undef || value(next) != l_Undef || !decision[next] || (skipvar && is_var_disabled(next))) {
+        /*if (log && skipvar && is_var_disabled(next)) {
+            fprintf(log, "c picked var %d that is disabled: skipping\n", next+1);
+        }*/
+        if (order_heap.empty()) {
             next = var_Undef;
             break;
-        }else
+        } else {
             next = order_heap.removeMin();
+        }
+    }
 
     // Choose polarity based on different polarity modes (global or per-variable):
     if (next == var_Undef)
@@ -582,6 +587,7 @@ void Solver::analyzeFinal(Lit p, LSet& out_conflict)
 void Solver::uncheckedEnqueue(Lit p, CRef from)
 {
     assert(value(p) == l_Undef);
+    assert(!skipvar || !is_var_disabled(var(p)));
     assigns[var(p)] = lbool(!sign(p));
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
@@ -626,6 +632,14 @@ CRef Solver::propagate()
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
         vec<Watcher>&  ws  = watches.lookup(p);
         Watcher        *i, *j, *end;
+        if(skipvar && is_var_disabled(var(p))){
+            if(log) {
+                fprintf(log, "c level %d : literal ", decisionLevel());
+                print_lit(p);
+                fprintf(log, "is disabled: skipping\n");
+            }
+            continue;
+        }
         num_props++;
         if(log) {
             fprintf(log, "c level %d : propagate ", decisionLevel());
@@ -697,12 +711,19 @@ CRef Solver::propagate()
                 while (i < end)
                     *j++ = *i++;
             }else {
+                bool should_prop = (!skipvar || !is_var_disabled(var(first)));
                 if(log) {
-                    fprintf(log, "c        will unit-propagate ");
+                    if(should_prop)
+                        fprintf(log, "c        will unit-propagate ");
+                    else
+                        fprintf(log, "c        should unit-propagate ");
                     print_lit(first);
-                    fprintf(log, "\n");
+                    if(should_prop)
+                        fprintf(log, "\n");
+                    else
+                        fprintf(log, "but it is disabled: skipping\n");
                 }
-                uncheckedEnqueue(first, cr);
+                if(should_prop) uncheckedEnqueue(first, cr);
             }
 
         NextClause:;

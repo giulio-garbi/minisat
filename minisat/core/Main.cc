@@ -66,6 +66,7 @@ int main(int argc, char** argv)
         BoolOption   strictp("MAIN", "strict", "Validate DIMACS header during parsing.", false);
         BoolOption   log("MAIN", "log", "Print the decision path on stdout.", false);
         StringOption   extra("MAIN", "extra", "Use extra file.");
+        BoolOption   skipvar("MAIN", "skip-var", "Skip unreachable vars.", false);
         
         parseOptions(argc, argv, true);
 
@@ -73,6 +74,7 @@ int main(int argc, char** argv)
         double initial_time = cpuTime();
 
         S.verbosity = verb;
+        S.skipvar = skipvar;
         if(log){
             S.log = stdout;
         }

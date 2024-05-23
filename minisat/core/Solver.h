@@ -333,6 +333,8 @@ protected:
         else
             return eval_guard(last_cref_guard.lower_bound(cr)) == l_False;
     }
+public:
+    bool skipvar;
 };
 
 
