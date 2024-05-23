@@ -24,6 +24,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <assert.h>
 #include <limits>
 #include <new>
+#include <algorithm>
 
 #include "minisat/mtl/IntTypes.h"
 #include "minisat/mtl/XAlloc.h"
@@ -91,6 +92,7 @@ public:
     // Duplicatation (preferred instead):
     void copyTo(vec<T>& copy) const { copy.clear(); copy.growTo(sz); for (Size i = 0; i < sz; i++) copy[i] = data[i]; }
     void moveTo(vec<T>& dest) { dest.clear(true); dest.data = data; dest.sz = sz; dest.cap = cap; data = NULL; sz = 0; cap = 0; }
+    int lower_bound(const T& item) { return std::lower_bound(data, data+sz, item) - data; }
 };
 
 

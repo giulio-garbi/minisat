@@ -307,6 +307,32 @@ protected:
     void print_clause(CRef c) const;
 
     int lit2int(Lit l) const;
+
+    lbool eval_guard(int guard_idx){
+        assert(guard_idx < parent_guard.size());
+        lbool val_guard = l_True;
+        while (guard_idx > 0 && val_guard != l_False){
+            lbool val_decision = value(mkLit(guard_idx-1));
+            if(val_decision == l_False || val_decision == l_Undef)
+                val_guard = val_decision;
+            guard_idx = parent_guard[guard_idx];
+        }
+        return val_guard;
+    }
+
+    bool is_var_disabled(Var v){
+        if(v < parent_guard.size()-1)
+            return eval_guard(parent_guard[v+1]) == l_False;
+        else
+            return eval_guard(last_var_guard.lower_bound(v)) == l_False;
+    }
+
+    bool is_cref_disabled(CRef cr){
+        if(cr > last_cref_guard.last())
+            return false;
+        else
+            return eval_guard(last_cref_guard.lower_bound(cr)) == l_False;
+    }
 };
 
 
